@@ -27,15 +27,17 @@ settlement_data <- read_excel("settlement_data.xlsx")
 ### Data transformation
 ######
 
-# join fuel_prices_main and settlement_data by settlement name
+# join "fuel_prices_main" and "settlement_data" by settlement name
 fuel_prices_main <- fuel_prices_main %>%
   left_join(settlement_data, by = c("Settlement" = "Name"))
 
-# calculate daily average fuel prices - will be used to fill NAs
+
+# calculate aggregated daily average fuel prices - will be used to fill NAs
 daily_avg <- fuel_prices_main %>%
   group_by(Date) %>%
   summarise(avg_diesel_price = mean(Diesel, na.rm = TRUE),
             avg_gasoline_price = mean(Diesel, na.rm = TRUE))
+
 
 # calculate pct changes in fuel prices
 daily_avg <- daily_avg %>%
@@ -46,17 +48,18 @@ daily_avg <- daily_avg %>%
   )
 
 
-## fill missing data
+### Fill missing data
 
 fuel_prices_main <- fuel_prices_main %>%
   mutate(date = as.Date(Date)) %>%
   arrange(Address, Date)
 
+# join aggregated daily averages to "fuel_prices_main"
 fuel_prices_main <- fuel_prices_main %>%
   left_join(daily_avg %>% select(Date, diesel_change_pct, gasoline_change_pct), 
             by = "Date")
 
-# forward fill
+# forward fill - with average daily price change
 fuel_prices_main <- fuel_prices_main %>%
   mutate(diesel_filled = ifelse(
                   is.na(Diesel),
@@ -68,7 +71,7 @@ fuel_prices_main <- fuel_prices_main %>%
                   Gasoline)
          )
 
-# backward fil
+# backward fill - with average daily prices change
 fuel_prices_main <- fuel_prices_main %>%
   mutate(diesel_filled = ifelse(
                   is.na(diesel_filled),
@@ -92,7 +95,8 @@ fuel_prices_main <- fuel_prices_main %>%
   select(-Diesel, -Gasoline, -date, -diesel_change_pct, -gasoline_change_pct)
 
 
-## weekly average prices in the fuel stations
+
+### Aggregate average diesel/gasoline prices in station level
 
 fuel_prices_weekly <- fuel_prices_main %>%
   group_by(Address) %>%
@@ -103,15 +107,17 @@ fuel_prices_weekly <- fuel_prices_main %>%
     .groups = "drop"
   )
 
+# remove some columns
 fuel_prices_weekly <- fuel_prices_weekly %>%
   select(-diesel_filled, -gasoline_filled, -Date)
 
 
-## calculate the population/fuel station metric
+
+### Calculate the population/fuel station metric
 fuel_prices_weekly <- fuel_prices_weekly %>%
   group_by(Settlement) %>%
   mutate(
-    pop_per_station = Population / n()  # n() gives the number of rows in this group
+    pop_per_station = Population / n()
   ) %>%
   ungroup()
 
